@@ -51,7 +51,7 @@ class BLSIngest:
                 {
                     "file_name": file_tag.text,
                     "file_path": file_tag.get("href").strip("/"),
-                    "last_update_date": datetime.strptime(
+                    "last_update_ts": datetime.strptime(
                         f"{prev_sib[0].strip()} {prev_sib[1].strip()} {prev_sib[2].strip()}",  # noqa
                         "%m/%d/%Y %I:%M %p"
                     ).isoformat()
@@ -103,6 +103,10 @@ class BLSIngest:
         file_name: str,
         last_update_ts: str
     ):
+        """
+        Keeping this per file for now due to the low count.
+        File info can be clubbed in case large writes are being performed.
+        """
         bq_client = bigquery.Client(
             project=self.bq_project_id
         )
@@ -110,23 +114,22 @@ class BLSIngest:
             merge into `{self.metadata_tbl}` as tgt
             using (
                 select 
-                    {file_name} as file_name,
-                    {last_update_ts} as last_update_ts,
-                    {self.section} as section
+                    '{file_name}' as file_name,
+                    '{last_update_ts}' as last_update_ts,
+                    '{self.section}' as section
             ) as src
             on 
                 tgt.file_name = src.file_name 
-                and tgt.section = src.section
+                and tgt.bls_section = src.section
             when matched then
-                set tgt.last_update_ts = src.last_update_ts
+                update set tgt.last_update_ts = datetime(src.last_update_ts)
             when not matched then
-            insert(file_name, last_update_ts, section)
-            values(src.file_name, src.last_update_ts, src.section)
+            insert(file_name, last_update_ts, bls_section)
+            values(src.file_name, datetime(src.last_update_ts), src.section)
             ;
         """
         response = bq_client.query(
-            query_,
-            job_config=job_config
+            query_
         ).result()
         print(f"response from metadata upsert: {response}")
 
@@ -155,6 +158,9 @@ class BLSIngest:
                         writer.write(chunk)
         print("File write complete.")
     
+    def __cleanup_old_files(self):
+        pass
+    
     def ingest(self):
         print(
             f"Starting ingestion for: {self.section}"
@@ -163,17 +169,17 @@ class BLSIngest:
         ingested_file_metadata = self.__get_metadata()
         for file in file_list:
             file_name = file['file_name']
-            print(f"Ingesting: {file_name}")
             if (
                 file_name not in ingested_file_metadata 
                 or datetime.strptime(
                     file['last_update_ts'], 
                     "%Y-%m-%dT%H:%M:%S"
                 ) > datetime.strptime(
-                    ingested_file_metadata[file_name], 
-                    "%Y-%m-%dT%H:%M:%S"
+                    ingested_file_metadata[file_name]['last_update_ts'], 
+                    "%Y-%m-%d %H:%M:%S"
                 )
             ):
+                print(f"Ingesting: {file_name}")
                 self.__ingest_file(
                     file_name, 
                     file['file_path']
@@ -182,4 +188,6 @@ class BLSIngest:
                     file_name,
                     file['last_update_ts']
                 )
+            else:
+                print(f"{file_name} already ingested.")
 

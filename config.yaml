@@ -1,0 +1,11 @@
+bls:
+  metadata:
+    bq_project: 'turnkey-clover-480017-b8'
+    bq_dataset: 'metadata'
+    bq_table: 'bls_section_files'
+  timeseries:
+    base_url: 'https://download.bls.gov/pub/time.series'
+    storage_bkt: 'rearc-soln'
+    pr:
+      files_to_skip: 
+        - '[To Parent Directory]'

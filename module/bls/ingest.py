@@ -31,7 +31,7 @@ class BLSIngest:
         response = requests.get(
             self.base_url,
             headers={
-                "User-Agent": "Chrome/120.0.0.0 Safari/537.36"  # noqa
+                "User-Agent": "BLS-Data-Ingest/1.0 (bill.gates@outlook.com)"  # noqa
             }
         ).text
         soup = BeautifulSoup(response)
@@ -50,7 +50,7 @@ class BLSIngest:
             parsed_file_details.append(
                 {
                     "file_name": file_tag.text,
-                    "access_url": file_tag.get("href"),
+                    "file_path": file_tag.get("href").strip("/"),
                     "last_update_date": datetime.strptime(
                         f"{prev_sib[0].strip()} {prev_sib[1].strip()} {prev_sib[2].strip()}",  # noqa
                         "%m/%d/%Y %I:%M %p"
@@ -97,18 +97,63 @@ class BLSIngest:
             for row in response
         }
         return metadata_dict
+    
+    def __upsert_metadata(
+        self, 
+        file_name: str,
+        last_update_ts: str
+    ):
+        bq_client = bigquery.Client(
+            project=self.bq_project_id
+        )
+        query_ = f"""
+            merge into `{self.metadata_tbl}` as tgt
+            using (
+                select 
+                    {file_name} as file_name,
+                    {last_update_ts} as last_update_ts,
+                    {self.section} as section
+            ) as src
+            on 
+                tgt.file_name = src.file_name 
+                and tgt.section = src.section
+            when matched then
+                set tgt.last_update_ts = src.last_update_ts
+            when not matched then
+            insert(file_name, last_update_ts, section)
+            values(src.file_name, src.last_update_ts, src.section)
+            ;
+        """
+        response = bq_client.query(
+            query_,
+            job_config=job_config
+        ).result()
+        print(f"response from metadata upsert: {response}")
 
 
-    def __ingest_file(self, file_name: str):
+    def __ingest_file(
+        self, 
+        file_name: str,
+        file_path: str
+    ):
         gcs_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
+        bucket = gcs_client.bucket(
+            self.storage_bkt
+        )
+        blob = bucket.blob(f"bls/{file_path}")
+        blob.content_type = "application/text"
         with requests.get(
             f"{self.base_url}/{file_name}",
+            headers={
+                "User-Agent": "BLS-Data-Ingest/1.0 (bill.gates@outlook.com)"  # noqa
+            },
             stream=True
         ) as response:
-
-        
+            with blob.open("wb") as writer:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk: 
+                        writer.write(chunk)
+        print("File write complete.")
     
     def ingest(self):
         print(
@@ -129,5 +174,12 @@ class BLSIngest:
                     "%Y-%m-%dT%H:%M:%S"
                 )
             ):
-                self.__ingest_file(file_name)
+                self.__ingest_file(
+                    file_name, 
+                    file['file_path']
+                )
+                self.__upsert_metadata(
+                    file_name,
+                    file['last_update_ts']
+                )
 

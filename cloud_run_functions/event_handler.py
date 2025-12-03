@@ -1,11 +1,15 @@
 from datetime import datetime
-from cloudevents.http import CloudEvent
+from flask import Flask
+from cloudevents.http import from_http
 import functions_framework
 from google.cloud import storage
 from io import StringIO
 import json
 import pandas as pd
 import yaml
+
+
+app = Flask(__name__)
 
 
 def calc_part_1(df):
@@ -83,11 +87,14 @@ def read_datausa_file(gcs_bkt, file_name, col_list):
     return df
 
 
-@functions_framework.cloud_event
-def event_trigger(cloud_event: CloudEvent):
+
+@app.route("/report/bls-datausa", methods=["POST"])
+def event_trigger():
 # def event_trigger(cloud_event):
-    data = cloud_event.data
-    if f"cube_acs_yg_total_population_data/{datetime.now().date().isoformat()}.json" not in data["name"]:  # noqa
+    event = from_http(request.headers, request.get_data())
+    file_name = event["name"]
+    print(f"event: {event}")
+    if f"cube_acs_yg_total_population_data/{datetime.now().date().isoformat()}.json" not in file_name:  # noqa
         raise Exception("The file uploaded cannot be processed.") 
 
     app_config = None
@@ -108,3 +115,12 @@ def event_trigger(cloud_event: CloudEvent):
     calc_part_1(part_2_df)
     calc_part_2(part_1_df)
     calc_part_3(part_1_df, part_2_df)
+    return "200"
+
+
+if __name__ == "__main__":
+    app.run(
+        "127.0.0.1",
+        port=8080,
+        debug=True  # leaving this as true given that it's a take home.
+    )

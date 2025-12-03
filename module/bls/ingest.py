@@ -5,6 +5,7 @@ from google.cloud import (
     storage
 )
 from io import BytesIO
+import os
 import re
 import requests
 import yaml
@@ -26,6 +27,10 @@ class BLSIngest:
         self.bq_project_id = bq_project_id
         self.metadata_tbl = metadata_tbl
         self.storage_bkt = storage_bkt
+        gcs_client = storage.Client()
+        self.__bucket = gcs_client.bucket(
+            self.storage_bkt
+        )
     
     def __get_file_tags(self):
         response = requests.get(
@@ -50,7 +55,7 @@ class BLSIngest:
             parsed_file_details.append(
                 {
                     "file_name": file_tag.text,
-                    "file_path": file_tag.get("href").strip("/"),
+                    "file_path": f"bls/{file_tag.get("href").strip("/")}",
                     "last_update_ts": datetime.strptime(
                         f"{prev_sib[0].strip()} {prev_sib[1].strip()} {prev_sib[2].strip()}",  # noqa
                         "%m/%d/%Y %I:%M %p"
@@ -139,11 +144,7 @@ class BLSIngest:
         file_name: str,
         file_path: str
     ):
-        gcs_client = storage.Client()
-        bucket = gcs_client.bucket(
-            self.storage_bkt
-        )
-        blob = bucket.blob(f"bls/{file_path}")
+        blob = self.__bucket.blob(f"{file_path}")
         blob.content_type = "application/text"
         with requests.get(
             f"{self.base_url}/{file_name}",
@@ -158,17 +159,49 @@ class BLSIngest:
                         writer.write(chunk)
         print("File write complete.")
     
-    def __cleanup_old_files(self):
-        pass
-    
+    def __cleanup_old_files(
+        self,
+        file_metadata,
+        current_file_list,
+        file_path,
+
+    ):
+        # get a list of old files from existing metadata.
+        deleted_files = set(file_metadata.keys()).difference(set(current_file_list))
+        concated_file_names = ",".join([f"'{file}'" for file in deleted_files]) 
+        if concated_file_names:
+            query_ = f"""
+                delete from `{self.metadata_tbl}`
+                where file_name in(
+                    {concated_file_names}
+                ) and bls_section = '{self.section}'
+                ;
+            """
+            bq_client = bigquery.Client(
+                project=self.bq_project_id
+            )
+            response = bq_client.query(
+                query_
+            ).result()
+            print(f"response from metadata upsert: {response}")
+            for file in deleted_files:
+                blob = self.__bucket.blob(f"{file_path}/{file}")
+                if blob.exists():
+                    blob.delete()
+                    print(f"Deleted: {file} successfully.")
+        else:
+            print("No files to delete.")
+
     def ingest(self):
         print(
             f"Starting ingestion for: {self.section}"
         )
         file_list = self.__get_file_list()
         ingested_file_metadata = self.__get_metadata()
+        current_file_list = []
         for file in file_list:
             file_name = file['file_name']
+            current_file_list.append(file_name)
             if (
                 file_name not in ingested_file_metadata 
                 or datetime.strptime(
@@ -190,4 +223,9 @@ class BLSIngest:
                 )
             else:
                 print(f"{file_name} already ingested.")
+        self.__cleanup_old_files(
+            ingested_file_metadata,
+            current_file_list,
+            os.path.dirname(file_list[0]['file_path']),
+        )
 

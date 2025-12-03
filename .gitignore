@@ -1,3 +1,4 @@
 .rearc_env
 .env
 .vscode
+**/__pycache__/**

@@ -19,6 +19,11 @@ with open("config.yaml", "r") as fp:
 def ingest_bls_data(section):
     try:
         bls_config = app_config["bls"]
+        if section not in bls_config["timeseries"]:
+            return make_response(
+                "Please enter valid section value.",
+                400
+            )
         bls_ingestor = BLSIngest(
             base_url=bls_config["timeseries"]["base_url"],
             section=section,
@@ -41,6 +46,11 @@ def ingest_honolulu_datasusa(region_name):
     try:
         region_name = region_name.lower()
         datausa_config = app_config["api"]["datausa"]
+        if region_name not in datausa_config:
+            return make_response(
+                "Please enter valid region name.",
+                400
+            )
         DataUsaIngest(
             region=region_name,
             storage_bkt=datausa_config["storage_bkt"],

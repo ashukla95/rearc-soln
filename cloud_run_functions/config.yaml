@@ -22,3 +22,24 @@ api:
         cube: 'acs_yg_total_population_1'
         locale: 'en'
         measures: 'Population'
+event:
+  storage_bkt: 'rearc-soln'
+  bls:
+    metadata:
+      pr:
+        pr.data.0.Current:
+          sep: '\t'
+          columns:
+            - series_id
+            - year
+            - period 
+            - value 
+            - footnote_codes
+  datausa:
+    honululu:
+      file: 'cube_acs_yg_total_population_data'
+      columns:
+        - nation_id
+        - nation
+        - year
+        - population

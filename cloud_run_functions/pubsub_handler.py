@@ -85,10 +85,11 @@ def read_datausa_file(gcs_bkt, file_name, col_list):
 
 @functions_framework.cloud_event
 def event_trigger(cloud_event: CloudEvent):
+# def event_trigger(cloud_event):
     data = cloud_event.data
     if f"cube_acs_yg_total_population_data/{datetime.now().date().isoformat()}.json" not in data["name"]:  # noqa
         raise Exception("The file uploaded cannot be processed.") 
-        
+
     app_config = None
     with open("config.yaml", "r") as fp:
         app_config = yaml.safe_load(fp)
@@ -101,8 +102,8 @@ def event_trigger(cloud_event: CloudEvent):
     )
     part_2_df = read_datausa_file(
         app_config["storage_bkt"],
-        f"datausa/honolulu/cube_acs_yg_total_population_data/{datetime.now().date().isoformat()}.json"
-        app_config["datausa"]["honululu"]["cube_acs_yg_total_population_data"]["columns"]
+        f"datausa/honolulu/cube_acs_yg_total_population_data/{datetime.now().date().isoformat()}.json",
+        app_config["datausa"]["honululu"]["columns"]
     )
     calc_part_1(part_2_df)
     calc_part_2(part_1_df)

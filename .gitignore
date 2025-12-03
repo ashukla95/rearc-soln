@@ -1,6 +1,11 @@
-.rearc_env
+.rearc_env/
 .env
 .vscode
 __pycache__
 **/__pycache__/**
 **/.ipynb_**
+.git
+.terraform*
+*.tf
+*.tfstate
+*.tfstate.backup

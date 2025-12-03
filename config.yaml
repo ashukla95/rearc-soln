@@ -9,3 +9,16 @@ bls:
     pr:
       files_to_skip: 
         - '[To Parent Directory]'
+api:
+  datausa:
+    storage_bkt: 'rearc-soln' 
+    honolulu:
+      base_url: 'https://honolulu-api.datausa.io'
+      resource_path: 'tesseract/data.jsonrecords'
+      query_params:
+        drilldowns:
+          - 'Year'
+          - 'Nation'
+        cube: 'acs_yg_total_population_1'
+        locale: 'en'
+        measures: 'Population'

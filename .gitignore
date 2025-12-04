@@ -9,3 +9,4 @@ __pycache__
 *.tf
 *.tfstate
 *.tfstate.backup
+.DS_Store

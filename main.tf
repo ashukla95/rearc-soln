@@ -2,7 +2,8 @@ locals {
   project_id = "turnkey-clover-480017-b8"
   region     = "us-central1"
   gcs_region = "us"
-  image_url  = "gcr.io/${local.project_id}/rearc/ingestion-soln:latest"
+  source_hash = sha1(join("", [for f in fileset("${path.module}/cloud_run_functions", "**"): filesha1("${path.module}/cloud_run_functions/${f}")]))
+  image_url  = "gcr.io/${local.project_id}/rearc/ingestion-soln:${local.source_hash}"
   bucket_name = "rearc-soln" 
 }
 
@@ -18,10 +19,25 @@ resource "google_project_service" "apis" {
     "run.googleapis.com",
     "eventarc.googleapis.com",
     "pubsub.googleapis.com",
-    "storage.googleapis.com"
+    "storage.googleapis.com",
+    "cloudbuild.googleapis.com"
   ])
   service            = each.key
   disable_on_destroy = false
+}
+
+resource "null_resource" "docker_build" {
+  triggers = {
+    # Re-build if any file in the python folder changes
+    dir_sha1 = sha1(join("", [for f in fileset("${path.module}/cloud_run_functions", "**"): filesha1("${path.module}/cloud_run_functions/${f}")]))
+  }
+
+  provisioner "local-exec" {
+    # Builds the image and pushes it to GCR
+    command = "gcloud builds submit --tag ${local.image_url} ${path.module}/cloud_run_functions/"
+  }
+  
+  depends_on = [google_project_service.apis]
 }
 
 # --- 2. The Bucket (with Import Logic) ---
@@ -73,7 +89,7 @@ resource "google_cloud_run_v2_service_iam_member" "http_public_access" {
 resource "google_cloud_run_v2_service" "gcs_worker_service" {
   name     = "gcs-event-handler"
   location = local.region
-  ingress  = "INGRESS_INTERNAL_ONLY" # Blocks public internet, allows Eventarc
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Blocks public internet, allows Eventarc
 
   template {
     containers {
@@ -92,10 +108,26 @@ resource "google_cloud_run_v2_service_iam_member" "eventarc_invoker_permission" 
   member   = "serviceAccount:${google_service_account.eventarc_invoker.email}"
 }
 
+resource "google_project_iam_member" "eventarc_receiver_binding" {
+  project = local.project_id
+  role    = "roles/eventarc.eventReceiver"
+  member  = "serviceAccount:${google_service_account.eventarc_invoker.email}"
+}
+
+data "google_storage_project_service_account" "gcs_account" {
+}
+
+# 2. Grant GCS permission to publish to Pub/Sub (Required for Eventarc)
+resource "google_project_iam_member" "gcs_pubsub_publishing" {
+  project = local.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${data.google_storage_project_service_account.gcs_account.email_address}"
+}
+
 # --- 6. The Eventarc Trigger ---
 resource "google_eventarc_trigger" "gcs_trigger" {
   name     = "gcs-finalized-trigger"
-  location = local.region
+  location = local.gcs_region
 
   service_account = google_service_account.eventarc_invoker.email
 

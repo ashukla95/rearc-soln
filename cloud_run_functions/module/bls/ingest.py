@@ -55,7 +55,7 @@ class BLSIngest:
             parsed_file_details.append(
                 {
                     "file_name": file_tag.text,
-                    "file_path": f"bls/{file_tag.get("href").strip("/")}",
+                    "file_path": f"bls/{file_tag.get('href').strip('/')}",
                     "last_update_ts": datetime.strptime(
                         f"{prev_sib[0].strip()} {prev_sib[1].strip()} {prev_sib[2].strip()}",  # noqa
                         "%m/%d/%Y %I:%M %p"

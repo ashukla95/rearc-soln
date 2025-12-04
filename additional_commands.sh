@@ -1,0 +1,1 @@
+gcloud builds submit --tag gcr.io/turnkey-clover-480017-b8/rearc/ingestion-soln:latest cloud_run_functions/

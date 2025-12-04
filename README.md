@@ -63,6 +63,18 @@ The API setup for Datausa was also cross-verified by re-creating the setup here:
 For BLS, config has been defined as per the section at hand. Now, I was dealing with PR alone. Hence, in the 
 config you shall see me using "pr" key only. The idea is, if down the line you need more sections to be added,
 it becomes plug and play essentially.
+The solution 
+- first gets the list of files from the server.
+- checks which files have changed or are not present
+- downloads the files to relevant gcs location
+- updates the metadata
+- deletes the files removed from the server
+- performs final metadata update
+The file checks for downloading a new file/ deleting an old file is developed using a metadata table present in
+BigQuery. The DDL of these files is presen inside the sql folder. The design was taken in consideration due to the
+fact that this solution can scale incase files increase in the future and metadata integration to downstrem becomes
+easier.
+
 
 I chose the most simplest class design to design the modules to ingest and process BLS and Datausa's data.
 But, Factory + Composition along with regular inheritance can do quite a lot of complex tasks of these exercises.
@@ -73,7 +85,7 @@ Most of the setup can be run locally as well.
 The steps to do so would be as follows:
 - Create your own gcs bucket in the gcp project.
 - Update the relevant fields in the config.yaml file
-- Start the flask server by running " python3 main.py  ".
+- Start the flask server by running " python3 <event/http>_handler.py  ".
 - Note: 
     - Please do create a venv and install the libraries using requirements.txt for the above steps.
     - For testing the report associated to part 3, you can run the ipynb notebook by running the jupyter server.
@@ -82,6 +94,34 @@ The steps to do so would be as follows:
 
 All of the urls to the files in the gcs are present inside ** signed_urls.txt **. These are valid for 12 hours only. In case 
 a check is performed post that, send me an email and I will provide new urls to reference.
+
+Few more proofs of working:
+
+### BigQuery
+![BigQuery](images/bq.png)
+
+### GCS
+![GCS](images/gcs.png)
+
+### Cloud Run Functions
+![Cloud Run Functions](images/crf.png)
+
+![Cloud Run Functions](images/part-4-console-output-p1.png)
+
+![Cloud Run Functions](images/part-4-console-output-p2.png)
+
+![Cloud Run Functions](images/part-4-console-output-p3.png)
+
+![Cloud Run Functions](images/part-4-console-output-p4.png)
+
+### Eventarc
+![Eventarc](images/eventarc.png)
+
+### Container registry
+![Container Registry](images/gcr.png)
+
+### Scheduler
+![Scheduler](images/scheduler.png)
 
 
 Lastly, given the priorities and time at hand, I have taken the liberty to compress certain design choices.

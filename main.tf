@@ -21,7 +21,8 @@ resource "google_project_service" "apis" {
     "pubsub.googleapis.com",
     "storage.googleapis.com",
     "cloudbuild.googleapis.com",
-    "containerregistry.googleapis.com"
+    "containerregistry.googleapis.com",
+    "cloudscheduler.googleapis.com"
   ])
   service            = each.key
   disable_on_destroy = false
@@ -167,4 +168,64 @@ output "http_service_url" {
 output "gcs_bucket_name" {
   description = "Bucket being watched"
   value       = google_storage_bucket.data_bucket.name
+}
+
+resource "google_service_account" "scheduler_sa" {
+  account_id   = "scheduler-invoker"
+  display_name = "Cloud Scheduler Invoker Account"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "scheduler_invoker_permission" {
+  location = google_cloud_run_v2_service.http_api_service.location
+  name     = google_cloud_run_v2_service.http_api_service.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler_sa.email}"
+}
+
+
+resource "google_cloud_scheduler_job" "bls_trigger" {
+  name             = "bls-daily-trigger"
+  description      = "Triggers the endpoint to ingest BLS-PR data"
+  schedule         = "0 18 * * *"
+  time_zone        = "America/New_York"
+  attempt_deadline = "538s"
+  region           = local.region  
+
+  http_target {
+    http_method = "GET"
+    
+    # 👇 CHANGE THIS PATH to your specific endpoint
+    uri = "${google_cloud_run_v2_service.http_api_service.uri}/ingest/bls/timeseries/pr"
+
+    # Authenticate as the service account
+    oidc_token {
+      service_account_email = google_service_account.scheduler_sa.email
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+
+resource "google_cloud_scheduler_job" "datausa_trigger" {
+  name             = "datausa-honolulu-daily-trigger"
+  description      = "Triggers the endpoint to ingest honolulu's data via datausa"
+  schedule         = "0 19 * * *"
+  time_zone        = "America/New_York"
+  attempt_deadline = "538s"
+  region           = local.region  
+
+  http_target {
+    http_method = "GET"
+    
+    # 👇 CHANGE THIS PATH to your specific endpoint
+    uri = "${google_cloud_run_v2_service.http_api_service.uri}/ingest/datausa/honolulu"
+
+    # Authenticate as the service account
+    oidc_token {
+      service_account_email = google_service_account.scheduler_sa.email
+    }
+  }
+
+  depends_on = [google_project_service.apis]
 }

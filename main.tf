@@ -68,7 +68,7 @@ resource "google_service_account" "eventarc_invoker" {
 resource "google_cloud_run_v2_service" "http_api_service" {
   name     = "http-public-handler"
   location = local.region
-  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Explicitly allow public internet traffic
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY" # Explicitly don't allow public internet traffic
 
   template {
     containers {

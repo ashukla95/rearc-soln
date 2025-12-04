@@ -20,7 +20,8 @@ resource "google_project_service" "apis" {
     "eventarc.googleapis.com",
     "pubsub.googleapis.com",
     "storage.googleapis.com",
-    "cloudbuild.googleapis.com"
+    "cloudbuild.googleapis.com",
+    "containerregistry.googleapis.com"
   ])
   service            = each.key
   disable_on_destroy = false
@@ -76,6 +77,12 @@ resource "google_cloud_run_v2_service" "http_api_service" {
     }
   }
   depends_on = [google_project_service.apis]
+}
+
+resource "time_sleep" "wait_for_apis" {
+  create_duration = "180s"
+  
+  depends_on = [google_project_service.apis, null_resource.docker_build]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "http_public_access" {

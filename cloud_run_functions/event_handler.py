@@ -92,7 +92,7 @@ def event_trigger():
 # def event_trigger(cloud_event):
     event = from_http(request.headers, request.get_data())
     print(f"event: {event}")
-    file_name = event["data"]["name"]
+    file_name = event.data["name"]
     if f"cube_acs_yg_total_population_data/{datetime.now().date().isoformat()}.json" not in file_name:  # noqa
         raise Exception("The file uploaded cannot be processed.") 
 

@@ -1,6 +1,6 @@
 bls:
   metadata:
-    bq_project: 'turnkey-clover-480017-b8'
+    bq_project: '<pid>'
     bq_dataset: 'metadata'
     bq_table: 'bls_section_files'
   timeseries:

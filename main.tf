@@ -1,5 +1,5 @@
 locals {
-  project_id = "turnkey-clover-480017-b8"
+  project_id = "<pid>"
   region     = "us-central1"
   gcs_region = "us"
   source_hash = sha1(join("", [for f in fileset("${path.module}/cloud_run_functions", "**"): filesha1("${path.module}/cloud_run_functions/${f}")]))
